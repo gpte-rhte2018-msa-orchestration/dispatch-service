@@ -20,6 +20,7 @@ import com.acme.ride.dispatch.dao.RideDao;
 import com.acme.ride.dispatch.entity.Ride;
 import com.acme.ride.dispatch.message.model.RideStartedEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.opentracing.Tracer;
 import org.drools.core.command.impl.CommandBasedStatefulKnowledgeSession;
 import org.jbpm.process.instance.ProcessInstance;
 import org.junit.Before;
@@ -58,6 +59,9 @@ public class RideEventsMessageListenerTest {
     @Mock
     private RideDao rideDao;
 
+    @Mock
+    private Tracer tracer;
+
     @Captor
     private ArgumentCaptor<Ride> rideCaptor;
 
@@ -83,6 +87,7 @@ public class RideEventsMessageListenerTest {
         setField(messageListener, null, runtimeManager, RuntimeManager.class);
         setField(messageListener, "processId", processId, String.class);
         setField(messageListener, null, rideDao, RideDao.class);
+        setField(messageListener, null, tracer, Tracer.class);
         setField(messageListener, "assignDriverExpireDuration", "5M", String.class);
         when(ptm.getTransaction(any())).thenReturn(transactionStatus);
         when(runtimeManager.getRuntimeEngine(any())).thenReturn(runtimeEngine);

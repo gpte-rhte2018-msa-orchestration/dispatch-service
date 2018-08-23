@@ -3,16 +3,19 @@ package com.acme.ride.dispatch.message.listeners;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import com.acme.ride.dispatch.dao.RideDao;
 import com.acme.ride.dispatch.entity.Ride;
 import com.acme.ride.dispatch.message.model.Message;
-import com.acme.ride.dispatch.message.model.RideRequestedEvent;
 import com.acme.ride.dispatch.message.model.RideEndedEvent;
+import com.acme.ride.dispatch.message.model.RideRequestedEvent;
 import com.acme.ride.dispatch.message.model.RideStartedEvent;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jayway.jsonpath.JsonPath;
+import io.opentracing.Tracer;
+import io.opentracing.tag.StringTag;
 import org.kie.api.runtime.KieSession;
 import org.kie.api.runtime.manager.RuntimeEngine;
 import org.kie.api.runtime.manager.RuntimeManager;
@@ -52,6 +55,9 @@ public class RideEventsMessageListener {
     @Autowired
     private RideDao rideDao;
 
+    @Autowired
+    private Tracer tracer;
+
     @Value("${dispatch.process.id}")
     private String processId;
 
@@ -64,23 +70,19 @@ public class RideEventsMessageListener {
             subscription = "${listener.subscription.ride-event}")
     public void processMessage(String messageAsJson) {
 
-        String messageType = getMessageType(messageAsJson);
-
-        if (messageType.isEmpty() || !accept(messageType)) {
-            return;
-        }
-
-        switch (messageType) {
-            case TYPE_RIDE_REQUESTED_EVENT:
-                processRideRequestEvent(messageAsJson);
-                break;
-            case TYPE_RIDE_STARTED_EVENT:
-                processRideStartedEvent(messageAsJson);
-                break;
-            case TYPE_RIDE_ENDED_EVENT:
-                processRideEndedEvent(messageAsJson);
-                break;
-        }
+        checkMessageType(messageAsJson).ifPresent(m -> {
+            switch (m) {
+                case TYPE_RIDE_REQUESTED_EVENT:
+                    processRideRequestEvent(messageAsJson);
+                    break;
+                case TYPE_RIDE_STARTED_EVENT:
+                    processRideStartedEvent(messageAsJson);
+                    break;
+                case TYPE_RIDE_ENDED_EVENT:
+                    processRideEndedEvent(messageAsJson);
+                    break;
+            }
+        });
     }
 
     private void processRideRequestEvent(String messageAsJson) {
@@ -199,21 +201,19 @@ public class RideEventsMessageListener {
         }
     }
 
-    private boolean accept(String messageType) {
-        if (!Arrays.stream(ACCEPTED_MESSAGE_TYPES).anyMatch(messageType::equals)) {
-            log.debug("Message with type '" + messageType + "' is ignored");
-            return false;
-        }
-        return true;
-    }
 
-    private String getMessageType(String messageAsJson) {
+    private Optional<String> checkMessageType(String messageAsJson) {
         try {
-            return JsonPath.read(messageAsJson, "$.messageType");
+            String messageType = JsonPath.read(messageAsJson, "$.messageType");
+            if (Arrays.stream(ACCEPTED_MESSAGE_TYPES).anyMatch(messageType::equals)) {
+                return Optional.of(messageType);
+            }
+            log.debug("Message with type '" + messageType + "' is ignored");
         } catch (Exception e) {
             log.warn("Unexpected message without 'messageType' field.");
-            return "";
         }
+        Optional.ofNullable(tracer.activeSpan()).ifPresent(s -> new StringTag("msg.accepted").set(s, "false"));
+        return Optional.empty();
     }
 
 }

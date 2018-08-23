@@ -14,6 +14,7 @@ import static org.springframework.test.util.ReflectionTestUtils.setField;
 
 import com.acme.ride.dispatch.dao.RideDao;
 import com.acme.ride.dispatch.entity.Ride;
+import io.opentracing.Tracer;
 import org.drools.core.command.impl.CommandBasedStatefulKnowledgeSession;
 import org.jbpm.process.instance.ProcessInstance;
 import org.junit.Before;
@@ -52,6 +53,9 @@ public class PassengerCanceledEventMessageListenerTest {
     @Mock
     private RideDao rideDao;
 
+    @Mock
+    private Tracer tracer;
+
     @Captor
     private ArgumentCaptor<String> signalCaptor;
 
@@ -65,6 +69,7 @@ public class PassengerCanceledEventMessageListenerTest {
         setField(messageListener, null, ptm, PlatformTransactionManager.class);
         setField(messageListener, null, runtimeManager, RuntimeManager.class);
         setField(messageListener, null, rideDao, RideDao.class);
+        setField(messageListener, null, tracer, Tracer.class);
         when(ptm.getTransaction(any())).thenReturn(transactionStatus);
         when(runtimeManager.getRuntimeEngine(any())).thenReturn(runtimeEngine);
         when(runtimeEngine.getKieSession()).thenReturn(kieSession);

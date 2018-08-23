@@ -1,5 +1,7 @@
 package com.acme.ride.dispatch.message.listeners;
 
+import java.util.Optional;
+
 import com.acme.ride.dispatch.dao.RideDao;
 import com.acme.ride.dispatch.entity.Ride;
 import com.acme.ride.dispatch.message.model.DriverAssignedEvent;
@@ -7,6 +9,8 @@ import com.acme.ride.dispatch.message.model.Message;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jayway.jsonpath.JsonPath;
+import io.opentracing.Tracer;
+import io.opentracing.tag.StringTag;
 import org.kie.api.runtime.KieSession;
 import org.kie.api.runtime.manager.RuntimeEngine;
 import org.kie.api.runtime.manager.RuntimeManager;
@@ -38,6 +42,9 @@ public class DriverAssignedEventMessageListener {
 
     @Autowired
     private RideDao rideDao;
+
+    @Autowired
+    private Tracer tracer;
 
     private CorrelationKeyFactory correlationKeyFactory = KieInternalServices.Factory.get().newCorrelationKeyFactory();
 
@@ -88,15 +95,16 @@ public class DriverAssignedEventMessageListener {
     private boolean accept(String messageAsJson) {
         try {
             String messageType = JsonPath.read(messageAsJson, "$.messageType");
-            if (!"DriverAssignedEvent".equalsIgnoreCase(messageType) ) {
+            if ("DriverAssignedEvent".equalsIgnoreCase(messageType) ) {
+                return true;
+            } else {
                 log.debug("Message with type '" + messageType + "' is ignored");
-                return false;
             }
-            return true;
         } catch (Exception e) {
             log.warn("Unexpected message without 'messageType' field.");
-            return false;
         }
+        Optional.ofNullable(tracer.activeSpan()).ifPresent(s -> new StringTag("msg.accepted").set(s, "false"));
+        return false;
     }
 
 }
