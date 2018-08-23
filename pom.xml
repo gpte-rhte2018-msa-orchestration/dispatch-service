@@ -168,6 +168,32 @@
       <version>2.2.3</version>
     </dependency>
     <dependency>
+      <groupId>io.opentracing.contrib</groupId>
+      <artifactId>opentracing-jms-spring</artifactId>
+      <version>0.0.8</version>
+      <exclusions>
+        <exclusion>
+          <artifactId>opentracing-jms-1</artifactId>
+          <groupId>io.opentracing.contrib</groupId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>io.opentracing.contrib</groupId>
+      <artifactId>opentracing-jms-2</artifactId>
+      <version>0.0.8</version>
+    </dependency>
+    <dependency>
+      <groupId>io.opentracing</groupId>
+      <artifactId>opentracing-api</artifactId>
+      <version>0.31.0</version>
+    </dependency>
+    <dependency>
+      <groupId>io.jaegertracing</groupId>
+      <artifactId>jaeger-core</artifactId>
+      <version>0.27.0</version>
+    </dependency>
+    <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-dbcp2</artifactId>
       <exclusions>
