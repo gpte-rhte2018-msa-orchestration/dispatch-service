@@ -117,7 +117,7 @@ public class RideEventsMessageListenerTest {
         assertThat(ride.getDestination(), equalTo("destination"));
         assertThat(ride.getPassengerId(), equalTo("passenger"));
         assertThat(ride.getPrice(), equalTo(new BigDecimal("25.0")));
-        assertThat(ride.getStatus(), equalTo(Ride.REQUESTED));
+        assertThat(ride.getStatus(), equalTo(Ride.Status.REQUESTED));
 
         verify(kieSession).startProcess(processIdCaptor.capture(), correlationKeyCaptor.capture(), parametersCaptor.capture());
         assertThat(processIdCaptor.getValue(), equalTo(processId));
@@ -153,7 +153,7 @@ public class RideEventsMessageListenerTest {
 
         Ride ride = new Ride();
         ride.setRideId("ride-1234");
-        ride.setStatus(Ride.DRIVER_ASSIGNED);
+        ride.setStatus(Ride.Status.DRIVER_ASSIGNED);
 
         when(rideDao.findByRideId("ride-1234")).thenReturn(ride);
 
@@ -171,7 +171,7 @@ public class RideEventsMessageListenerTest {
         assertThat(signal, equalTo("RideStarted"));
         verify(runtimeManager).disposeRuntimeEngine(runtimeEngine);
         verify(rideDao).findByRideId("ride-1234");
-        assertThat(ride.getStatus(), equalTo(Ride.STARTED));
+        assertThat(ride.getStatus(), equalTo(Ride.Status.STARTED));
     }
 
     @Test
@@ -187,7 +187,7 @@ public class RideEventsMessageListenerTest {
 
         Ride ride = new Ride();
         ride.setRideId("ride123");
-        ride.setStatus(Ride.STARTED);
+        ride.setStatus(Ride.Status.STARTED);
 
         when(rideDao.findByRideId("ride123")).thenReturn(ride);
 
@@ -205,7 +205,7 @@ public class RideEventsMessageListenerTest {
         assertThat(signal, equalTo("RideEnded"));
         verify(runtimeManager).disposeRuntimeEngine(runtimeEngine);
         verify(rideDao).findByRideId("ride123");
-        assertThat(ride.getStatus(), equalTo(Ride.ENDED));
+        assertThat(ride.getStatus(), equalTo(Ride.Status.ENDED));
     }
 
     @Test
