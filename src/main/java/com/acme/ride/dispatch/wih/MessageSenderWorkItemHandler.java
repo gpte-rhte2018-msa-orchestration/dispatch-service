@@ -62,8 +62,8 @@ public class MessageSenderWorkItemHandler implements WorkItemHandler {
         if (rideId == null || !(rideId instanceof String)) {
             throw new IllegalStateException("\"Parameters 'rideId' cannot be null and must be of type String\"");
         }
-        Ride order = rideDao.findByRideId((String)rideId);
-        Message<Object> message  = new Message.Builder<Object>((String)messageType, "DispatchService", builder.apply(order))
+        Ride ride = rideDao.findByRideId((String)rideId);
+        Message<Object> message  = new Message.Builder<Object>((String)messageType, "DispatchService", builder.apply(ride))
                 .traceId(traceId.toString()).build();
         send(message, destination);
         manager.completeWorkItem(workItem.getId(), Collections.emptyMap());
