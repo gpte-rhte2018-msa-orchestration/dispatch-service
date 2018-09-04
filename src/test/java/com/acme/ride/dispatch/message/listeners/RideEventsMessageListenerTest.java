@@ -170,8 +170,6 @@ public class RideEventsMessageListenerTest {
         String signal = signalCaptor.getValue();
         assertThat(signal, equalTo("RideStarted"));
         verify(runtimeManager).disposeRuntimeEngine(runtimeEngine);
-        verify(rideDao).findByRideId("ride-1234");
-        assertThat(ride.getStatus(), equalTo(Ride.Status.STARTED));
     }
 
     @Test
@@ -204,8 +202,6 @@ public class RideEventsMessageListenerTest {
         String signal = signalCaptor.getValue();
         assertThat(signal, equalTo("RideEnded"));
         verify(runtimeManager).disposeRuntimeEngine(runtimeEngine);
-        verify(rideDao).findByRideId("ride123");
-        assertThat(ride.getStatus(), equalTo(Ride.Status.ENDED));
     }
 
     @Test
