@@ -4,6 +4,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import javax.annotation.PostConstruct;
 
 import com.acme.ride.dispatch.dao.RideDao;
 import com.acme.ride.dispatch.entity.Ride;
@@ -14,6 +16,8 @@ import com.acme.ride.dispatch.message.model.RideStartedEvent;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jayway.jsonpath.JsonPath;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import io.opentracing.Tracer;
 import io.opentracing.tag.StringTag;
 import org.kie.api.runtime.KieSession;
@@ -47,6 +51,9 @@ public class RideEventsMessageListener {
     private static final String[] ACCEPTED_MESSAGE_TYPES = {TYPE_RIDE_REQUESTED_EVENT, TYPE_RIDE_STARTED_EVENT, TYPE_RIDE_ENDED_EVENT};
 
     @Autowired
+    private MeterRegistry meterRegistry;
+
+    @Autowired
     private RuntimeManager runtimeManager;
 
     @Autowired
@@ -66,23 +73,19 @@ public class RideEventsMessageListener {
 
     private CorrelationKeyFactory correlationKeyFactory = KieInternalServices.Factory.get().newCorrelationKeyFactory();
 
+    private Map<String, Timer> timers = new HashMap<>();
+
+    @PostConstruct
+    public void initTimers() {
+        timers.put(TYPE_RIDE_REQUESTED_EVENT, Timer.builder("dispatch-service.message.process").tags("type",TYPE_RIDE_REQUESTED_EVENT).register(meterRegistry));
+        timers.put(TYPE_RIDE_STARTED_EVENT, Timer.builder("dispatch-service.message.process").tags("type",TYPE_RIDE_STARTED_EVENT).register(meterRegistry));
+        timers.put(TYPE_RIDE_ENDED_EVENT, Timer.builder("dispatch-service.message.process").tags("type",TYPE_RIDE_ENDED_EVENT).register(meterRegistry));
+    }
+
     @JmsListener(destination = "${listener.destination.ride-event}",
             subscription = "${listener.subscription.ride-event}")
     public void processMessage(String messageAsJson) {
-
-        checkMessageType(messageAsJson).ifPresent(m -> {
-            switch (m) {
-                case TYPE_RIDE_REQUESTED_EVENT:
-                    processRideRequestEvent(messageAsJson);
-                    break;
-                case TYPE_RIDE_STARTED_EVENT:
-                    processRideStartedEvent(messageAsJson);
-                    break;
-                case TYPE_RIDE_ENDED_EVENT:
-                    processRideEndedEvent(messageAsJson);
-                    break;
-            }
-        });
+        checkMessageType(messageAsJson).ifPresent(m -> timedProcessMessage(m, messageAsJson));
     }
 
     private void processRideRequestEvent(String messageAsJson) {
@@ -202,6 +205,26 @@ public class RideEventsMessageListener {
         }
         Optional.ofNullable(tracer.activeSpan()).ifPresent(s -> new StringTag("msg.accepted").set(s, "false"));
         return Optional.empty();
+    }
+
+    private void timedProcessMessage(String messageType, String messageAsJson) {
+        Optional<Timer> timer = Optional.ofNullable(timers.get(messageType));
+        long start = System.currentTimeMillis();
+        try {
+            switch (messageType) {
+                case TYPE_RIDE_REQUESTED_EVENT:
+                    processRideRequestEvent(messageAsJson);
+                    break;
+                case TYPE_RIDE_STARTED_EVENT:
+                    processRideStartedEvent(messageAsJson);
+                    break;
+                case TYPE_RIDE_ENDED_EVENT:
+                    processRideEndedEvent(messageAsJson);
+                    break;
+            }
+        } finally {
+            timer.ifPresent(t -> t.record(System.currentTimeMillis() - start, TimeUnit.MILLISECONDS));
+        }
     }
 
 }

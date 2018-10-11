@@ -11,6 +11,8 @@ import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.initMocks;
 import static org.springframework.test.util.ReflectionTestUtils.setField;
 
+import java.util.Optional;
+
 import com.acme.ride.dispatch.dao.RideDao;
 import com.acme.ride.dispatch.entity.Ride;
 import io.opentracing.Tracer;
@@ -69,6 +71,7 @@ public class PassengerCanceledEventMessageListenerTest {
         setField(messageListener, null, runtimeManager, RuntimeManager.class);
         setField(messageListener, null, rideDao, RideDao.class);
         setField(messageListener, null, tracer, Tracer.class);
+        setField(messageListener, "timer", Optional.ofNullable(null), null);
         when(ptm.getTransaction(any())).thenReturn(transactionStatus);
         when(runtimeManager.getRuntimeEngine(any())).thenReturn(runtimeEngine);
         when(runtimeEngine.getKieSession()).thenReturn(kieSession);

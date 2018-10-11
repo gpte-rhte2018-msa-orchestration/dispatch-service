@@ -1,6 +1,8 @@
 package com.acme.ride.dispatch.message.listeners;
 
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import javax.annotation.PostConstruct;
 
 import com.acme.ride.dispatch.dao.RideDao;
 import com.acme.ride.dispatch.entity.Ride;
@@ -9,6 +11,8 @@ import com.acme.ride.dispatch.message.model.Message;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jayway.jsonpath.JsonPath;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import io.opentracing.Tracer;
 import io.opentracing.tag.StringTag;
 import org.kie.api.runtime.KieSession;
@@ -34,6 +38,8 @@ public class DriverAssignedEventMessageListener {
 
     private final static Logger log = LoggerFactory.getLogger(DriverAssignedEventMessageListener.class);
 
+    private final static String TYPE_DRIVER_ASSIGNED_EVENT = "DriverAssignedEvent";
+
     @Autowired
     private RuntimeManager runtimeManager;
 
@@ -46,6 +52,11 @@ public class DriverAssignedEventMessageListener {
     @Autowired
     private Tracer tracer;
 
+    @Autowired
+    private MeterRegistry meterRegistry;
+
+    private Optional<Timer> timer;
+
     private CorrelationKeyFactory correlationKeyFactory = KieInternalServices.Factory.get().newCorrelationKeyFactory();
 
     @JmsListener(destination = "${listener.destination.driver-assigned-event}",
@@ -55,6 +66,11 @@ public class DriverAssignedEventMessageListener {
         if (!accept(messageAsJson)) {
             return;
         }
+        timedProcessMessage(messageAsJson);
+    }
+
+    public void processDriverAssigned(String messageAsJson) {
+
         Message<DriverAssignedEvent> message;
         try {
 
@@ -89,7 +105,7 @@ public class DriverAssignedEventMessageListener {
     private boolean accept(String messageAsJson) {
         try {
             String messageType = JsonPath.read(messageAsJson, "$.messageType");
-            if ("DriverAssignedEvent".equalsIgnoreCase(messageType) ) {
+            if (TYPE_DRIVER_ASSIGNED_EVENT.equalsIgnoreCase(messageType) ) {
                 return true;
             } else {
                 log.debug("Message with type '" + messageType + "' is ignored");
@@ -101,4 +117,18 @@ public class DriverAssignedEventMessageListener {
         return false;
     }
 
+    @PostConstruct
+    public void initTimers() {
+        timer = Optional.of(Timer.builder("dispatch-service.message.process").tags("type",TYPE_DRIVER_ASSIGNED_EVENT).register(meterRegistry));
+    }
+
+    private void timedProcessMessage(String messageAsJson) {
+
+        long start = System.currentTimeMillis();
+        try {
+            processDriverAssigned(messageAsJson);
+        } finally {
+            timer.ifPresent(t -> t.record(System.currentTimeMillis() - start, TimeUnit.MILLISECONDS));
+        }
+    }
 }

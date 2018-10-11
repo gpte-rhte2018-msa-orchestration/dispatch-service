@@ -1,6 +1,8 @@
 package com.acme.ride.dispatch.message.listeners;
 
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import javax.annotation.PostConstruct;
 
 import com.acme.ride.dispatch.dao.RideDao;
 import com.acme.ride.dispatch.message.model.Message;
@@ -8,6 +10,8 @@ import com.acme.ride.dispatch.message.model.PassengerCanceledEvent;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jayway.jsonpath.JsonPath;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import io.opentracing.Tracer;
 import io.opentracing.tag.StringTag;
 import org.kie.api.runtime.KieSession;
@@ -33,6 +37,8 @@ public class PassengerCanceledEventMessageListener {
 
     private final static Logger log = LoggerFactory.getLogger(PassengerCanceledEventMessageListener.class);
 
+    private final static String TYPE_PASSENGER_CANCELED_EVENT = "PassengerCanceledEvent";
+
     @Autowired
     private RuntimeManager runtimeManager;
 
@@ -45,6 +51,11 @@ public class PassengerCanceledEventMessageListener {
     @Autowired
     private Tracer tracer;
 
+    @Autowired
+    private MeterRegistry meterRegistry;
+
+    private Optional<Timer> timer;
+
     private CorrelationKeyFactory correlationKeyFactory = KieInternalServices.Factory.get().newCorrelationKeyFactory();
 
     @JmsListener(destination = "${listener.destination.passenger-canceled-event}",
@@ -54,6 +65,11 @@ public class PassengerCanceledEventMessageListener {
         if (!accept(messageAsJson)) {
             return;
         }
+        timedProcessMessage(messageAsJson);
+    }
+
+    public void processPassengerCanceled(String messageAsJson) {
+
         Message<PassengerCanceledEvent> message;
         try {
 
@@ -86,7 +102,7 @@ public class PassengerCanceledEventMessageListener {
     private boolean accept(String messageAsJson) {
         try {
             String messageType = JsonPath.read(messageAsJson, "$.messageType");
-            if ("PassengerCanceledEvent".equalsIgnoreCase(messageType) ) {
+            if (TYPE_PASSENGER_CANCELED_EVENT.equalsIgnoreCase(messageType) ) {
                 return true;
             } else {
                 log.debug("Message with type '" + messageType + "' is ignored");
@@ -99,4 +115,18 @@ public class PassengerCanceledEventMessageListener {
         return false;
     }
 
+    @PostConstruct
+    public void initTimers() {
+        timer = Optional.of(Timer.builder("dispatch-service.message.process").tags("type",TYPE_PASSENGER_CANCELED_EVENT).register(meterRegistry));
+    }
+
+    private void timedProcessMessage(String messageAsJson) {
+
+        long start = System.currentTimeMillis();
+        try {
+            processPassengerCanceled(messageAsJson);
+        } finally {
+            timer.ifPresent(t -> t.record(System.currentTimeMillis() - start, TimeUnit.MILLISECONDS));
+        }
+    }
 }
