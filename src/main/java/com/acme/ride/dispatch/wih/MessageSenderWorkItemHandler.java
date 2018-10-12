@@ -7,6 +7,8 @@ import java.util.function.Function;
 
 import com.acme.ride.dispatch.dao.RideDao;
 import com.acme.ride.dispatch.entity.Ride;
+import com.acme.ride.dispatch.message.model.AssignDriverCommand;
+import com.acme.ride.dispatch.message.model.HandlePaymentCommand;
 import com.acme.ride.dispatch.message.model.Message;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -20,7 +22,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.jms.core.JmsTemplate;
 import org.springframework.stereotype.Component;
 
-@Component
+@Component("SendMessage")
 public class MessageSenderWorkItemHandler implements WorkItemHandler {
 
     private static final Logger log = LoggerFactory.getLogger(MessageSenderWorkItemHandler.class);
@@ -35,6 +37,12 @@ public class MessageSenderWorkItemHandler implements WorkItemHandler {
     private RideDao rideDao;
 
     private Map<String, Function<Ride, ? extends Object>> payloadBuilders = new HashMap<>();
+    
+    
+    public MessageSenderWorkItemHandler() {
+        addPayloadBuilder("AssignDriverCommand", AssignDriverCommand::build);
+        addPayloadBuilder("HandlePaymentCommand", HandlePaymentCommand::build);
+    }
 
     @Override
     public void executeWorkItem(WorkItem workItem, WorkItemManager manager) {
