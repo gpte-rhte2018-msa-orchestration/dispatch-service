@@ -9,9 +9,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import java.math.BigDecimal;
 import java.util.UUID;
 
-import com.acme.ride.dispatch.DataSourceConfiguration;
-import com.acme.ride.dispatch.JpaConfiguration;
-import com.acme.ride.dispatch.entity.Ride;
+import org.jbpm.springboot.autoconfigure.JBPMAutoConfiguration;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,10 +22,12 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.acme.ride.dispatch.entity.Ride;
+
 @RunWith(SpringRunner.class)
 @SpringBootTest
 @ActiveProfiles("test")
-@ContextConfiguration(classes = {RideDao.class, JpaConfiguration.class, JpaProperties.class, DataSourceConfiguration.class,
+@ContextConfiguration(classes = {JBPMAutoConfiguration.class, RideDao.class, JpaProperties.class,
         NarayanaJtaConfiguration.class, DataSourceProperties.class})
 public class RideDaoTest {
 

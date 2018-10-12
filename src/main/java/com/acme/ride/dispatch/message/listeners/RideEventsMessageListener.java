@@ -4,25 +4,11 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
-import com.acme.ride.dispatch.dao.RideDao;
-import com.acme.ride.dispatch.entity.Ride;
-import com.acme.ride.dispatch.message.model.Message;
-import com.acme.ride.dispatch.message.model.RideRequestedEvent;
-import com.acme.ride.dispatch.message.model.RideEndedEvent;
-import com.acme.ride.dispatch.message.model.RideStartedEvent;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.jayway.jsonpath.JsonPath;
-import org.kie.api.runtime.KieSession;
-import org.kie.api.runtime.manager.RuntimeEngine;
-import org.kie.api.runtime.manager.RuntimeManager;
+import org.jbpm.services.api.ProcessService;
 import org.kie.api.runtime.process.ProcessInstance;
 import org.kie.internal.KieInternalServices;
-import org.kie.internal.process.CorrelationAwareProcessRuntime;
 import org.kie.internal.process.CorrelationKey;
 import org.kie.internal.process.CorrelationKeyFactory;
-import org.kie.internal.runtime.manager.context.CorrelationKeyContext;
-import org.kie.internal.runtime.manager.context.ProcessInstanceIdContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,6 +18,16 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionTemplate;
+
+import com.acme.ride.dispatch.dao.RideDao;
+import com.acme.ride.dispatch.entity.Ride;
+import com.acme.ride.dispatch.message.model.Message;
+import com.acme.ride.dispatch.message.model.RideEndedEvent;
+import com.acme.ride.dispatch.message.model.RideRequestedEvent;
+import com.acme.ride.dispatch.message.model.RideStartedEvent;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jayway.jsonpath.JsonPath;
 
 @Component
 public class RideEventsMessageListener {
@@ -44,7 +40,7 @@ public class RideEventsMessageListener {
     private static final String[] ACCEPTED_MESSAGE_TYPES = {TYPE_RIDE_REQUESTED_EVENT, TYPE_RIDE_STARTED_EVENT, TYPE_RIDE_ENDED_EVENT};
 
     @Autowired
-    private RuntimeManager runtimeManager;
+    private ProcessService processService;
 
     @Autowired
     private PlatformTransactionManager transactionManager;
@@ -54,6 +50,8 @@ public class RideEventsMessageListener {
 
     @Value("${dispatch.process.id}")
     private String processId;
+    @Value("${dispatch.deployment.id}")
+    private String deploymentId;
 
     @Value("${dispatch.assign.driver.expire.duration}")
     private String assignDriverExpireDuration;
@@ -110,16 +108,11 @@ public class RideEventsMessageListener {
 
             TransactionTemplate template = new TransactionTemplate(transactionManager);
             template.execute((TransactionStatus s) -> {
-                RuntimeEngine engine = runtimeManager.getRuntimeEngine(ProcessInstanceIdContext.get());
-                KieSession ksession = engine.getKieSession();
                 rideDao.create(ride);
-                try {
-                    ProcessInstance pi = ((CorrelationAwareProcessRuntime)ksession).startProcess(processId, correlationKey, parameters);
-                    log.debug("Started dispatch process for ride request " + rideId + ". ProcessInstanceId = " + pi.getId());
-                    return null;
-                } finally {
-                    runtimeManager.disposeRuntimeEngine(engine);
-                }
+                Long pi = processService.startProcess(deploymentId, processId, correlationKey, parameters);
+                log.debug("Started dispatch process for ride request " + rideId + ". ProcessInstanceId = " + pi);
+                return null;
+   
             });
         } catch (Exception e) {
             log.error("Error processing msg " + messageAsJson, e);
@@ -141,15 +134,11 @@ public class RideEventsMessageListener {
 
             TransactionTemplate template = new TransactionTemplate(transactionManager);
             template.execute((TransactionStatus s) -> {
-                RuntimeEngine engine = runtimeManager.getRuntimeEngine(CorrelationKeyContext.get(correlationKey));
-                KieSession ksession = engine.getKieSession();
-                try {
-                    ProcessInstance instance = ((CorrelationAwareProcessRuntime) ksession).getProcessInstance(correlationKey);
-                    ksession.signalEvent("RideStarted", null, instance.getId());
-                    return null;
-                } finally {
-                    runtimeManager.disposeRuntimeEngine(engine);
-                }
+                
+                ProcessInstance instance = processService.getProcessInstance(correlationKey);
+                processService.signalProcessInstance(instance.getId(), "RideStarted", null);
+                return null;
+            
             });
         } catch (Exception e) {
             log.error("Error processing msg " + messageAsJson, e);
@@ -171,15 +160,11 @@ public class RideEventsMessageListener {
 
             TransactionTemplate template = new TransactionTemplate(transactionManager);
             template.execute((TransactionStatus s) -> {
-                RuntimeEngine engine = runtimeManager.getRuntimeEngine(CorrelationKeyContext.get(correlationKey));
-                KieSession ksession = engine.getKieSession();
-                try {
-                    ProcessInstance instance = ((CorrelationAwareProcessRuntime) ksession).getProcessInstance(correlationKey);
-                    ksession.signalEvent("RideEnded", null, instance.getId());
-                    return null;
-                } finally {
-                    runtimeManager.disposeRuntimeEngine(engine);
-                }
+               
+                ProcessInstance instance = processService.getProcessInstance(correlationKey);
+                processService.signalProcessInstance(instance.getId(), "RideEnded", null);
+                return null;
+           
             });
         } catch (Exception e) {
             log.error("Error processing msg " + messageAsJson, e);

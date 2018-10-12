@@ -1,21 +1,10 @@
 package com.acme.ride.dispatch.message.listeners;
 
-import com.acme.ride.dispatch.dao.RideDao;
-import com.acme.ride.dispatch.entity.Ride;
-import com.acme.ride.dispatch.message.model.DriverAssignedEvent;
-import com.acme.ride.dispatch.message.model.Message;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.jayway.jsonpath.JsonPath;
-import org.kie.api.runtime.KieSession;
-import org.kie.api.runtime.manager.RuntimeEngine;
-import org.kie.api.runtime.manager.RuntimeManager;
+import org.jbpm.services.api.ProcessService;
 import org.kie.api.runtime.process.ProcessInstance;
 import org.kie.internal.KieInternalServices;
-import org.kie.internal.process.CorrelationAwareProcessRuntime;
 import org.kie.internal.process.CorrelationKey;
 import org.kie.internal.process.CorrelationKeyFactory;
-import org.kie.internal.runtime.manager.context.CorrelationKeyContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,13 +14,21 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import com.acme.ride.dispatch.dao.RideDao;
+import com.acme.ride.dispatch.entity.Ride;
+import com.acme.ride.dispatch.message.model.DriverAssignedEvent;
+import com.acme.ride.dispatch.message.model.Message;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jayway.jsonpath.JsonPath;
+
 @Component
 public class DriverAssignedEventMessageListener {
 
     private final static Logger log = LoggerFactory.getLogger(DriverAssignedEventMessageListener.class);
 
     @Autowired
-    private RuntimeManager runtimeManager;
+    private ProcessService processService;
 
     @Autowired
     private PlatformTransactionManager transactionManager;
@@ -61,17 +58,12 @@ public class DriverAssignedEventMessageListener {
 
             TransactionTemplate template = new TransactionTemplate(transactionManager);
             template.execute((TransactionStatus s) -> {
-                RuntimeEngine engine = runtimeManager.getRuntimeEngine(CorrelationKeyContext.get(correlationKey));
-                KieSession ksession = engine.getKieSession();
-                try {
-                    Ride ride = rideDao.findByRideId(rideId);
-                    ride.setDriverId(message.getPayload().getDriverId());
-                    ProcessInstance instance = ((CorrelationAwareProcessRuntime) ksession).getProcessInstance(correlationKey);
-                    ksession.signalEvent("DriverAssigned", null, instance.getId());
-                    return null;
-                } finally {
-                    runtimeManager.disposeRuntimeEngine(engine);
-                }
+                
+                Ride ride = rideDao.findByRideId(rideId);
+                ride.setDriverId(message.getPayload().getDriverId());
+                ProcessInstance instance = processService.getProcessInstance(correlationKey);
+                processService.signalProcessInstance(instance.getId(), "DriverAssigned", null);
+                return null;
             });
         } catch (Exception e) {
             log.error("Error processing msg " + messageAsJson, e);
